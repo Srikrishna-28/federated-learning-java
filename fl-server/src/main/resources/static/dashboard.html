@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Federated Learning Dashboard</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
+<style>
+    body {
+        font-family: Arial, sans-serif;
+        background: #0f172a;
+        color: #f1f5f9;
+        margin: 0;
+        padding: 30px;
+    }
+    h1 {
+        text-align: center;
+        color: #38bdf8;
+    }
+    .subtitle {
+        text-align: center;
+        color: #94a3b8;
+        margin-bottom: 30px;
+    }
+    .chart-container {
+        max-width: 900px;
+        margin: 0 auto;
+        background: #1e293b;
+        padding: 20px;
+        border-radius: 12px;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.4);
+    }
+    .status {
+        text-align: center;
+        margin-top: 15px;
+        color: #4ade80;
+        font-size: 14px;
+    }
+</style>
+</head>
+<body>
+
+    <h1>Federated Learning: Breast Cancer Detection</h1>
+    <p class="subtitle">Live accuracy of 3 hospitals collaborating without sharing patient data</p>
+
+    <div class="chart-container">
+        <canvas id="accuracyChart"></canvas>
+    </div>
+
+    <p class="status" id="statusText">Waiting for training data...</p>
+
+<script>
+    const ctx = document.getElementById('accuracyChart').getContext('2d');
+
+    const chart = new Chart(ctx, {
+        type: 'line',
+        data: {
+            labels: [],
+            datasets: []
+        },
+        options: {
+            responsive: true,
+            scales: {
+                x: {
+                    title: { display: true, text: 'Round', color: '#f1f5f9' },
+                    ticks: { color: '#f1f5f9' },
+                    grid: { color: '#334155' }
+                },
+                y: {
+                    title: { display: true, text: 'Accuracy (%)', color: '#f1f5f9' },
+                    min: 0,
+                    max: 100,
+                    ticks: { color: '#f1f5f9' },
+                    grid: { color: '#334155' }
+                }
+            },
+            plugins: {
+                legend: { labels: { color: '#f1f5f9' } }
+            }
+        }
+    });
+
+    const colors = ['#f87171', '#38bdf8', '#4ade80', '#facc15', '#a78bfa'];
+
+    async function fetchData() {
+        try {
+            const response = await fetch('/dashboard-data');
+            const data = await response.json();
+            const history = data.history;
+
+            const rounds = Object.keys(history).sort((a, b) => a - b);
+            if (rounds.length === 0) return;
+
+            // Collect all client names seen so far
+            const clientNames = new Set();
+            rounds.forEach(r => {
+                Object.keys(history[r]).forEach(name => clientNames.add(name));
+            });
+
+            chart.data.labels = rounds.map(r => "Round " + r);
+
+            chart.data.datasets = Array.from(clientNames).map((name, idx) => {
+                return {
+                    label: name,
+                    data: rounds.map(r => history[r][name] !== undefined ? history[r][name] : null),
+                    borderColor: colors[idx % colors.length],
+                    backgroundColor: colors[idx % colors.length],
+                    tension: 0.3,
+                    fill: false
+                };
+            });
+
+            chart.update();
+
+            document.getElementById('statusText').innerText =
+                "Latest round: " + rounds[rounds.length - 1] + " | Auto-refreshing every 2 seconds";
+
+        } catch (err) {
+            document.getElementById('statusText').innerText = "Waiting for server...";
+        }
+    }
+
+    fetchData();
+    setInterval(fetchData, 2000);
+</script>
+
+</body>
+</html>
